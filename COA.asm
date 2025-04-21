@@ -29,6 +29,7 @@ include irvine32.inc
     tabline		   BYTE    09h,0
     RM             BYTE    "RM",0
     KG             BYTE    "KG",0
+    zero           BYTE    "0",0
     options        DWORD    4 DUP(0) ; Array to store options for flight booking  
     selection      BYTE    1
     var            DWORD   0
@@ -59,8 +60,9 @@ include irvine32.inc
     user_menu        BYTE  "1. Flight Booking",0dh,0ah,
                            "2. View Booking Details",0dh,0ah,
                            "3. Make Payment",0dh,0ah,
-                           "4. Exit",0dh,0ah,
-                           "Choice[1-4]: ",0
+                           "4. View Receipt",0dh,0ah,
+                           "5. Exit",0dh,0ah,
+                           "Choice[1-5]: ",0
 
     flight_menu     BYTE   "Please select a flight: ",0dh,0ah,0
     choice_prompt    BYTE   "Choice[1-4]: ",0
@@ -137,7 +139,7 @@ include irvine32.inc
 
     date_table  dword OFFSET date_option0,OFFSET date_option1, OFFSET date_option2, OFFSET date_option3, OFFSET date_option4, OFFSET date_option5, OFFSET date_option6, OFFSET date_option7,OFFSET date_option8, OFFSET date_option9 
 
-    receipt_booking  BYTE  100 DUP(0) 
+    receipt_flight  BYTE  100 DUP(0) 
     receipt_class    BYTE  100 DUP(0)
     receipt_baggage  BYTE  "Baggage weight",09h,0
     receipt_date     BYTE  100 DUP(0)
@@ -164,23 +166,60 @@ include irvine32.inc
     cvv_prompt             BYTE "Enter CVV (3 digits): ",0
     bank_id        BYTE 13 DUP(?)  ; 12 chars + null
     bank_password  BYTE 12 DUP(?)  ; 11 chars + null
-    card_number    BYTE 17 DUP(?)  ; 16 digits + null
-    cvv            BYTE 4 DUP(?)   ; 3 digits + null
+    card_number    BYTE 20 DUP(?)  ; 19 digits + null
+    cvv            BYTE 5 DUP(?)   ; 4 digits + null
     bank_id_length_error   BYTE "Bank ID must be 6-12 characters!",0dh,0ah,0
     password_length_error  BYTE "Password must be 6-11 characters!",0dh,0ah,0
     card_number_error      BYTE "Card number must be exactly 16 digits!",0dh,0ah,0
     cvv_error              BYTE "CVV must be exactly 3 digits!",0dh,0ah,0
+    transaction_time       BYTE "Transaction Time: ",0
+
+    day         DWORD 0                     
+    month       DWORD 0
+    year        DWORD 0
+    hour        DWORD 0 
+    minute 	    DWORD 0
+    second 	    DWORD 0
+    temp_date                           BYTE 100 DUP(0)
+    temp_flight                         BYTE 100 DUP(0)
+    temp_ticket_input                   DWORD 0
+    temp_flight_price                   DWORD 0
+    temp_flight_price_floating_point    DWORD 0
+    temp_class                          BYTE 100 DUP(0)
+    temp_class_price                    DWORD 0
+    temp_class_price_floating_point     DWORD 0
+    temp_baggage_weight                 DWORD 0
+    temp_baggage_price                  DWORD 0
+    temp_baggage_price_floating_point   DWORD 0
+    temp_tax_price                      DWORD 0
+    temp_tax_price_floating_point       DWORD 0
+    temp_discount_price                 DWORD 0 
+    temp_discount_price_floating_point  DWORD 0
+    temp_final_price                    DWORD 0
+    temp_final_price_floating_point     DWORD 0
+
+
 
 .code
 main proc
-
+    ; The thing to get system time
+    LOCAL sysTime:SYSTEMTIME
+    ; Initialize color constants
+    BLUE_TEXT = 1
+    RED_TEXT = 4
+    DEFAULT_TEXT = 7
+    GREEN_TEXT = 2
 menu_loop:
+    ; Display logo in blue
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, main_menu 
-    call writestring
-    
+    call WriteString 
     call ReadDec
     cmp eax, 1
     je register
@@ -188,8 +227,12 @@ menu_loop:
     je login
     cmp eax, 3
     je exit_program
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp menu_loop
 
 register:
@@ -217,13 +260,21 @@ check_existing:
     jmp check_existing
     
 id_exists:
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, exists_msg
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp menu_loop
     
 invalid_input:
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_msg
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp menu_loop
     
 id_ok:
@@ -246,8 +297,12 @@ id_ok:
     mov passwords[ebx*4], eax
     inc user_count
     
+    mov eax, GREEN_TEXT
+    call SetTextColor
     lea edx, success_msg
     call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp menu_loop
 
 login:
@@ -279,17 +334,30 @@ next_user:
     jmp search_loop
 
 login_fail:
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, fail_msg
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp menu_loop
     
 login_success:
+    mov eax, GREEN_TEXT
+    call SetTextColor
     lea edx, success_msg
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
+    jmp usermenu
 
 usermenu:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, user_menu
     call writestring
@@ -302,14 +370,24 @@ usermenu:
     cmp eax, 3
     je make_payment
     cmp eax, 4
-    je menu_loop  
+    je view_receipt
+    cmp eax, 5
+    je exit_program
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp usermenu
 
 flight_selection:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, flight_menu
     call writestring
@@ -331,8 +409,12 @@ flight_selection:
     jmp flightprice
 
 flight_error_msg:
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp flight_selection
     
 back_usermenu:
@@ -340,11 +422,11 @@ back_usermenu:
 
 flightprice:
     mov esi,OFFSET options
-    movzx eax, byte ptr [esi+ecx]  ; get option number (0–9)
+    movzx eax, byte ptr [esi+ecx]  ; get option number (0-9)
     mov user_input,eax
     mov ebx, OFFSET booking_table
     mov esi,[ebx+eax*4]
-    mov edi,OFFSET receipt_booking
+    mov edi,OFFSET receipt_flight
     call copystring 
     mov esi,OFFSET options
     movzx eax, byte ptr [esi+ecx]
@@ -366,8 +448,12 @@ nondomestic:
     mov tax_rate,0
 
 class_selection:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, class_menu
     call writestring
@@ -383,8 +469,12 @@ class_selection:
     je classprice4
     cmp eax,5
     je back_flight_selection
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp class_selection
 
 back_flight_selection:
@@ -422,8 +512,12 @@ classprice4:
     call copystring
 
 baggage_selection:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, baggage_menu
     call writestring
@@ -439,8 +533,12 @@ baggage_selection:
     je baggageprice4
     cmp eax,5
     je back_class_selection
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp baggage_selection
 
 back_class_selection:
@@ -486,13 +584,21 @@ calc_baggage_price:
     jmp date_selection
 
 baggage_error_msg:
-    lea edx,baggage_error
-    call writestring
+    mov eax, RED_TEXT
+    call SetTextColor
+    lea edx, baggage_error
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp baggageprice4
 
 date_selection:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, date_prompt
     call WriteString
@@ -514,8 +620,12 @@ date_selection:
     jmp date   
 
 date_error_msg:
-    mov edx, OFFSET invalid_choice
+    mov eax, RED_TEXT
+    call SetTextColor
+    lea edx, invalid_choice
     call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp date_selection
 
 back_baggage_selection:
@@ -523,7 +633,7 @@ back_baggage_selection:
 
 date:
     mov esi,OFFSET options
-    movzx eax, byte ptr [esi+ecx]  ; get option number (0–9)
+    movzx eax, byte ptr [esi+ecx]  ; get option number (0-9)
     mov user_input,eax
     mov ebx, OFFSET date_table
     mov esi,[ebx+eax*4]
@@ -532,8 +642,12 @@ date:
     jmp number_of_tickets
 
 number_of_tickets:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, ticket_prompt
     call writestring
@@ -546,7 +660,12 @@ number_of_tickets:
     jmp enter_credential
 
 ticket_error_msg:
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, ticket_error
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp number_of_tickets
     
 enter_credential:
@@ -573,8 +692,12 @@ enter_credential:
     jmp enter_credential
 
 membership_selection:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     lea edx, membership_menu
     call writestring
 
@@ -583,8 +706,12 @@ membership_selection:
     je membership_validation
     cmp eax,2
     je membership_no
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp membership_selection
 
 membership_no:
@@ -604,8 +731,12 @@ membership_validation:
 book_new:
     mov eax, 0
     mov discount_rate,eax
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, book_new_menu
     call writestring
@@ -616,8 +747,12 @@ book_new:
     je flight_selection
     cmp eax,2
     je usermenu
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp book_new
 
 calc_total_price:
@@ -675,15 +810,19 @@ calc_final_price:
     jmp usermenu
 
 view_booking_details:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, receipt_date_msg
     call writestring
     lea edx, receipt_date
     call writestring
     call crlf
-    lea edx, receipt_booking
+    lea edx, receipt_flight
     call writestring
     mov eax, ticket_input
     call Writedec
@@ -801,8 +940,12 @@ view_booking_details:
     jmp book_new
 
 make_payment:
+    mov eax, BLUE_TEXT
+    call SetTextColor
     lea edx, logo
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     call crlf
     lea edx, receipt_total
     call writestring
@@ -833,8 +976,12 @@ make_payment:
     je credit_debit_card
     cmp eax, 5
     je usermenu
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, invalid_choice
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp make_payment
 
 online_banking:
@@ -851,96 +998,441 @@ credit_debit_card:
 
 process_payment:
     ; Simulate payment processing
+    mov eax, GREEN_TEXT
+    call SetTextColor
     lea edx, payment_success_msg
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
+    call crlf
+    invoke GetLocalTime, ADDR sysTime
+    movzx eax, sysTime.wDay
+    mov day, eax
+    movzx eax, sysTime.wMonth
+    mov month, eax
+    movzx eax, sysTime.wYear
+    mov year, eax
+    movzx eax, sysTime.wHour
+    mov hour, eax
+    movzx eax, sysTime.wMinute
+    mov minute, eax
+    movzx eax, sysTime.wSecond
+    mov second, eax
+    mov eax, ticket_input
+    mov temp_ticket_input, eax
+    mov eax, flight_price
+    mov temp_flight_price, eax
+    mov eax, flight_price_floating_point
+    mov temp_flight_price_floating_point, eax
+    mov eax, class_price
+    mov temp_class_price, eax
+    mov eax, class_price_floating_point
+    mov temp_class_price_floating_point, eax
+    mov eax, baggage_weight
+    mov temp_baggage_weight, eax
+    mov eax, baggage_price
+    mov temp_baggage_price, eax
+    mov eax, baggage_price_floating_point
+    mov temp_baggage_price_floating_point, eax
+    mov eax, tax_price
+    mov temp_tax_price, eax
+    mov eax, tax_price_floating_point
+    mov temp_tax_price_floating_point, eax
+    mov eax, discount_price
+    mov temp_discount_price, eax
+    mov eax, discount_price_floating_point
+    mov temp_discount_price_floating_point, eax
+    mov eax, final_price
+    mov temp_final_price, eax
+    mov eax, final_price_floating_point
+    mov temp_final_price_floating_point, eax
+    lea esi, receipt_date
+    lea edi, temp_date
+    call copystring
+    lea esi, receipt_flight
+    lea edi, temp_flight
+    call copystring
+    lea esi, receipt_class
+    lea edi, temp_class
+    call copystring
+    jmp clear_booking_detail
+
+clear_booking_detail:
+    mov ticket_input,0
+    mov flight_price,0
+    mov class_price,0
+    mov baggage_weight,0
+    mov baggage_price,0
+    mov tax_price,0
+    mov discount_price,0
+    mov final_price,0
+    mov tax_price_floating_point,0
+    mov discount_price_floating_point,0
+    mov final_price_floating_point,0
+    mov edi, OFFSET receipt_flight
+    mov ecx, SIZEOF receipt_flight
+    call clearstring
+    mov edi, OFFSET nameArray
+    mov ecx, SIZEOF nameArray
+    call clearstring
+    mov edi, OFFSET passportArray
+    mov ecx, SIZEOF passportArray
+    call clearstring
+    mov edi, OFFSET receipt_class
+    mov ecx, SIZEOF receipt_class
+    call clearstring
+    mov edi, OFFSET receipt_date
+    mov ecx, SIZEOF receipt_date
+    call clearstring
+    mov edi, OFFSET baggage_weight
+    mov ecx, SIZEOF baggage_weight
+    jmp usermenu
+
+view_receipt:
+    mov eax, BLUE_TEXT
+    call SetTextColor
+    lea edx, logo
+    call writestring
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
+    call crlf
+    lea edx, transaction_time
+    call writestring
+    mov eax,day
+    call writedec
+    mov al,'/'
+    call writechar
+    mov eax,month
+    call writedec
+    mov al,'/'
+    call writechar
+    mov eax,year
+    call writedec
+    lea edx,tabline
+    call writestring
+    mov eax,hour
+    cmp eax,10
+    jb addzero1
+    ja noadd1
+addzero1:
+    lea edx,zero
+    call writestring
+noadd1:
+    call writedec
+    mov al,':'
+    call writechar
+    mov eax,minute
+    cmp eax,10
+    jb addzero2
+    ja noadd2
+addzero2:
+    lea edx,zero
+    call writestring
+noadd2:
+    call writedec
+    mov al,':'
+    call writechar
+    mov eax,second
+    cmp eax,10
+    jb addzero3
+    ja noadd3
+addzero3:
+    lea edx,zero
+    call writestring
+noadd3:
+    call writedec
+    call Crlf
+    lea edx, receipt_date_msg
+    call writestring
+    lea edx, temp_date
     call writestring
     call crlf
-    jmp usermenu
+    lea edx, temp_flight
+    call writestring
+    mov eax, temp_ticket_input
+    call Writedec
+    lea edx, receipt_pax
+    call writestring
+    lea edx,tabline
+    call writestring
+    lea edx,RM
+    call writestring
+    mov eax,temp_flight_price
+    mul temp_ticket_input
+    call writedec
+    mov al,'.'
+    call writechar
+    mov eax,temp_flight_price_floating_point             ;eax = floating point number
+    call writedec
+    call writedec
+    call crlf
+    lea edx, temp_class
+    call writestring
+    lea edx,tabline
+    call writestring
+    mov eax, temp_ticket_input
+    call writedec
+    lea edx, receipt_pax
+    call writestring
+    lea edx,tabline
+    call writestring
+    lea edx,RM
+    call writestring
+    mov eax,temp_class_price
+    mul temp_ticket_input
+    call writedec
+    mov al,'.'
+    call writechar
+    mov eax,temp_class_price_floating_point             ;eax = floating point number
+    call writedec
+    call writedec
+    call crlf
+    lea edx, receipt_baggage
+    call writestring
+    mov eax, temp_baggage_weight
+    call writedec
+    lea edx,kg
+    call writestring
+    lea edx,tabline
+    call writestring
+    call writestring
+    mov eax,temp_ticket_input
+    call writedec
+    lea edx,receipt_pax
+    call writestring
+    lea edx,tabline
+    call writestring
+    lea edx,RM
+    call writestring
+    mov eax,temp_baggage_price
+    mul temp_ticket_input
+    call writedec
+    mov al,'.'
+    call writechar
+    mov eax,temp_baggage_price_floating_point
+    call writedec
+    call writedec
+    call crlf
+    lea edx, receipt_tax
+    call writestring
+    lea edx,tabline
+    call writestring
+    call writestring
+    call WriteString
+    call writestring
+    lea edx,RM
+    call writestring
+    mov eax, temp_tax_price
+    call WriteDec
+    mov al,'.'
+    call writechar
+    mov eax,temp_tax_price_floating_point             
+    cmp eax,0
+    jg nopad
+    call writedec
+nopad:
+    call writedec
+    call crlf
+    lea edx, receipt_discount
+    call writestring
+    lea edx,tabline
+    call writestring
+    call writestring
+    call writestring
+    lea edx,RM
+    call writestring
+    mov eax, temp_discount_price
+    call writedec
+    mov al,'.'
+    call writechar
+    mov eax,temp_discount_price_floating_point             
+    jg nopad2
+    call writedec
+nopad2:
+    call writedec
+    call crlf
+    lea edx, receipt_total
+    call writestring
+    lea edx,tabline
+    call writestring
+    call writestring
+    call writestring
+    call writestring
+    lea edx,RM
+    call writestring
+    mov eax, temp_final_price
+    call writedec
+    mov al,'.'
+    call writechar
+    mov eax,temp_final_price_floating_point             
+    jg nopad3
+    call writedec
+nopad3:
+    call writedec
+    call crlf
+    jmp book_new
 
 exit_program:
     exit
     main endp
 
+clearstring proc
+
+clearloop:
+    mov byte ptr [edi], 0
+    inc edi
+    loop clearloop
+    ret
+
+clearstring endp
+
 get_online_banking_details proc
 bank_id_input:
+    ; Clear buffer first
+    mov edi, OFFSET bank_id
+    mov ecx, SIZEOF bank_id
+    xor al, al
+    rep stosb
+
+    ; Prompt and read input
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     lea edx, online_bank_id_prompt
-    call writestring
+    call WriteString
     mov edx, OFFSET bank_id
     mov ecx, SIZEOF bank_id
     call ReadString
-    mov ecx, eax  ; Store actual length in ECX
-    
-    ; Validate bank ID length (6-12 chars)
-    mov ebx, 6      ; min
-    mov edi, 12     ; max
-    call validate_length_range
-    jnc password_input
+
+    ; Check for overflow (last character not CR)
+    cmp eax, SIZEOF bank_id - 1  ; Max allowed length
+    jb check_min_bank
+    mov esi, OFFSET bank_id
+    add esi, SIZEOF bank_id - 2   ; Check last stored character
+    cmp byte ptr [esi], 0Dh       ; Is it CR?
+    je check_min_bank
+
+    ; Clear input buffer if overflow
+flush_bank:
+    call ReadChar
+    cmp al, 0Dh
+    jne flush_bank
+
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, bank_id_length_error
-    call writestring
+    call WriteString
+    jmp bank_id_input
+
+check_min_bank:
+    ; Validate minimum length
+    cmp eax, 6
+    jge password_input
+    mov eax, RED_TEXT
+    call SetTextColor
+    lea edx, bank_id_length_error
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp bank_id_input
 
 password_input:
+    ; Clear buffer first
+    mov edi, OFFSET bank_password
+    mov ecx, SIZEOF bank_password
+    xor al, al
+    rep stosb
+
+    ; Prompt and read input
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     lea edx, online_password_prompt
-    call writestring
+    call WriteString
     mov edx, OFFSET bank_password
-    mov ecx, 11              ; Max 11 chars
-    mov ebx, 0               ; String mode
-    mov ecx, eax             ; Store length in ECX
-    
-    ; Validate password length (6-11 chars)
-    mov ebx, 6               ; min
-    mov edi, 11              ; max
-    call validate_length_range
-    jnc done
+    mov ecx, SIZEOF bank_password
+    call ReadString
+
+    ; Check for overflow (last character not CR)
+    cmp eax, SIZEOF bank_password - 1  ; Max allowed length
+    jb check_min_password
+    mov esi, OFFSET bank_password
+    add esi, SIZEOF bank_password - 2  ; Check last stored character
+    cmp byte ptr [esi], 0Dh            ; Is it CR?
+    je check_min_password
+
+    ; Clear input buffer if overflow
+flush_pass:
+    call ReadChar
+    cmp al, 0Dh
+    jne flush_pass
+
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, password_length_error
-    call writestring
+    call WriteString
+    jmp password_input
+
+check_min_password:
+    ; Validate minimum length
+    cmp eax, 6
+    jge done
+    mov eax, RED_TEXT
+    call SetTextColor
+    lea edx, password_length_error
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     jmp password_input
 
 done:
     ret
 get_online_banking_details endp
 
-get_credit_card_details proc
+get_credit_card_details PROC
 card_number_input:
     lea edx, card_number_prompt
-    call writestring
+    call WriteString
     mov edx, OFFSET card_number
     mov ecx, SIZEOF card_number
     call ReadString
-    
-    ; Validate card number (exactly 16 digits)
-    cmp eax, 16
-    jne invalid_card
-    mov ecx, eax  ; Set length for digit check
+    cmp eax, 16                 ; Check if exactly 16 digits entered
+    jne invalid_card            ; Jump if not 16 (includes too long/short)
+    mov ecx, eax                ; Prepare to validate each digit
     call validate_digits
-    jnc cvv_input
-
+    jnc cvv_input               ; Proceed if valid
 invalid_card:
-    lea edx,card_number_error
-    call writestring
-    jmp card_number_input
+    ; Display error message (red text)
+    mov eax, RED_TEXT
+    call SetTextColor
+    lea edx, card_number_error
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
+    jmp card_number_input       ; Retry input
 
 cvv_input:
-    lea edx,cvv_prompt
-    call writeString
+    lea edx, cvv_prompt
+    call WriteString
     mov edx, OFFSET cvv
     mov ecx, SIZEOF cvv
     call ReadString
-    
-    ; Validate CVV (exactly 3 digits)
-    cmp eax, 3
-    jne invalid_cvv
-    mov ecx, eax  ; Set length for digit check
+    cmp eax, 3                  ; Check if exactly 3 digits entered
+    jne invalid_cvv             ; Jump if not 3 (too long/short)
+    mov ecx, eax
     call validate_digits
-    jnc done
-
+    jnc done                    ; Proceed if valid
 invalid_cvv:
+    ; Display error message (red text)
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, cvv_error
-    call writestring
-    jmp cvv_input
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
+    jmp cvv_input               ; Retry input
 
 done:
     ret
-get_credit_card_details endp
+get_credit_card_details ENDP
 
 ;A function to copy a string from one variable to another
 copystring proc
@@ -964,7 +1456,7 @@ randomizer proc
     xor ecx, ecx                    ; counter for stored values
 GenLoop:
     mov eax, 10
-    call RandomRange                ; EAX = 0–9
+    call RandomRange                ; EAX = 0?9
 
     ; Check for duplicates
     mov esi, OFFSET options
@@ -1002,7 +1494,7 @@ printbookingloop:
     mov selection,al
     mov al,'.'
     call writechar
-    movzx eax, byte ptr [esi]  ; get option number (0–9)
+    movzx eax, byte ptr [esi]  ; get option number (0?9)
     mov ebx, OFFSET booking_table
     mov edx, [ebx + eax*4]     ; load pointer to message
     call writestring
@@ -1029,7 +1521,7 @@ printdatesloop:
     mov selection,al
     mov al,'.'
     call writechar
-    movzx eax, byte ptr [esi]  ; get option number (0–9)
+    movzx eax, byte ptr [esi]  ; get option number (0?9)
     mov ebx, OFFSET date_table
     mov edx, [ebx + eax*4]     ; load pointer to message
     call writestring
@@ -1125,11 +1617,21 @@ CheckResult:
     je membership_yes
 
     ; No match found
+    mov eax, RED_TEXT
+    call SetTextColor
     lea edx, membership_error
-    call writestring
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     ret
 
 membership_yes:
+    mov eax, GREEN_TEXT
+    call SetTextColor
+    lea edx, success_msg  
+    call WriteString
+    mov eax, DEFAULT_TEXT
+    call SetTextColor
     mov eax,5
     mov discount_rate,eax
     ret
@@ -1208,42 +1710,38 @@ adjust:
 
 adjust_final_floating_point endp
 
-validate_digits proc
+validate_digits PROC
     push esi
-    mov esi, edx        ; Point to start of string
-    
+    mov esi, edx
 digit_check_loop:
-    mov al, [esi]       ; Get current character
-    cmp al, 0           ; Check for null terminator (if length was wrong)
-    je  invalid_digit_found
-    
+    mov al, [esi]
+    cmp al, 0
+    je invalid_digit_found
     cmp al, '0'
-    jl  invalid_digit_found
+    jl invalid_digit_found
     cmp al, '9'
-    jg  invalid_digit_found
-    
+    jg invalid_digit_found
     inc esi
     loop digit_check_loop
-    
     pop esi
-    clc                 ; Clear carry flag (valid)
+    clc
     ret
-
 invalid_digit_found:
     pop esi
-    stc                 ; Set carry flag (invalid)
+    stc
     ret
-validate_digits endp
-validate_length_range proc
+validate_digits ENDP
+
+validate_length_range PROC
     cmp ecx, ebx
-    jl  invalid_len_range     ; Length < min_length
+    jl invalid_len_range
     cmp ecx, edi
-    jg  invalid_len_range     ; Length > max_length
-    clc                       ; Clear CF (valid)
+    jg invalid_len_range
+    clc
     ret
 invalid_len_range:
-    stc                       ; Set CF (invalid)
+    stc
     ret
-validate_length_range endp
+validate_length_range ENDP
 
 end main
