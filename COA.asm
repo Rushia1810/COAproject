@@ -372,7 +372,7 @@ usermenu:
     cmp eax, 4
     je view_receipt
     cmp eax, 5
-    je exit_program
+    je menu_loop
     mov eax, RED_TEXT
     call SetTextColor
     lea edx, invalid_choice
@@ -399,6 +399,8 @@ flight_selection:
     call writestring
 
     call ReadDec      ;1 to 4
+    cmp eax,0
+    je flight_error_msg
     dec eax           ;0 to 3
     cmp eax,4
     je back_usermenu
@@ -567,9 +569,11 @@ baggageprice4:
     mov baggage_price,eax
     lea edx, baggage_prompt
     call writestring
-    call ReadDec
+    call ReadInt
     cmp eax,50
     ja baggage_error_msg
+    cmp eax,0
+    jl baggage_error_msg
     jmp calc_baggage_price
     
 calc_baggage_price:
@@ -610,6 +614,8 @@ date_selection:
     call WriteString
     
     call ReadDec      ;1 to 4
+    cmp eax,0
+    je date_error_msg
     dec eax           ;0 to 3
     cmp eax,4
     je baggage_selection
@@ -664,6 +670,7 @@ ticket_error_msg:
     call SetTextColor
     lea edx, ticket_error
     call WriteString
+    call crlf
     mov eax, DEFAULT_TEXT
     call SetTextColor
     jmp number_of_tickets
