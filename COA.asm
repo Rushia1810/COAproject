@@ -54,7 +54,7 @@ include irvine32.inc
     success_msg      BYTE  "Success!",0dh,0ah,0
     fail_msg         BYTE  "Failure!",0dh,0ah,0
     exists_msg       BYTE  "User ID already exists!",0dh,0ah,0
-    invalid_msg      BYTE  "Must be 4 digits!",0dh,0ah,0
+    invalid_msg      BYTE  "Must start with 1, be 4 digits and numbers only!",0dh,0ah,0
     invalid_choice   BYTE  "Invalid choice",0dh,0ah,0
 
     user_menu        BYTE  "1. Flight Booking",0dh,0ah,
@@ -352,6 +352,7 @@ login_success:
     jmp usermenu
 
 usermenu:
+    call randomizer
     mov eax, BLUE_TEXT
     call SetTextColor
     lea edx, logo
@@ -391,7 +392,7 @@ flight_selection:
     call crlf
     lea edx, flight_menu
     call writestring
-    call randomizer
+    
     mov esi, OFFSET options
     mov ecx, 4
     call printbookloop
